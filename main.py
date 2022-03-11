@@ -5,6 +5,11 @@ from PyQt6.QtWidgets import QApplication,QWidget,QBoxLayout,QVBoxLayout, QMainWi
 from PyQt6.QtCore import Qt
 from PyQt6 import uic
 
+
+# to do
+# add entry text for things       self.lineEdit.setPlaceholderText('placeholdertext')
+# add enter key press actions
+
 # DB SETUP:
 # creates or opens db
 db = sqlite3.connect("records.db")
@@ -20,10 +25,26 @@ cursor.execute('''
 ''')
 db.commit()
 
+
 class ResultWindow(QWidget):
-    def __init__(self):
+    def __init__(self,record):
         super().__init__()
+        self.record = record
         uic.loadUi('result.ui',self)
+        cursor.execute("""SELECT service, username, email, password FROM passwords WHERE service = ?""",(self.record,))
+        self.full_record = cursor.fetchone()
+        print(self.full_record)
+        self.text = f"""    \tService: {self.full_record[0]}
+                        Username: {self.full_record[1]}
+                        Email: {self.full_record[2]}
+                        Passwords: {self.full_record[3]}"""
+        self.textEdit.setText(self.text)
+        self.label.setText(f"Record for: {self.full_record[0]}")
+        self.pushButton.clicked.connect(self.end)
+
+    def end(self):
+        # the self.destroy callback won't work from the __init__
+        self.destroy()
 
 
 class MainWindow(QMainWindow):
@@ -31,28 +52,101 @@ class MainWindow(QMainWindow):
         super().__init__()
         uic.loadUi('main.ui',self)
         self.error_1.hide()
-        self.search.clicked.connect(self.db_check)
+        self.search.clicked.connect(self.pull_up_record)
+        self.pushButton_2.clicked.connect(self.delete_from_db)
+        self.pushButton.clicked.connect(self.create_record)
+        self.error_2.hide()
 
-    def search_db(self,service):
-        # pull up list of DB services
-        cursor.execute("""SELECT service,username,email,password FROM passwords WHERE service=?""", (service,))
-        # print(cursor.fetchone())
-        return cursor.fetchone()
-    def db_check(self):
+    def search_db(self):
+        # check if entry exists - general
+        self.error_2.hide()
         cursor.execute("""SELECT service FROM passwords""")
         db_services = cursor.fetchall()
-        print(db_services)
-        if self.lineEdit.text() in db_services[0]:
-            self.result = db_services[0][0]
-            print('yeah its here', db_services[0][0])
-            self.result_window = ResultWindow()
-            self.result_window.show()
+        # the query result comes out as tuples.
+        db_services = [x[0] for x in db_services]
+        print("SV check: the services are:",db_services)
+        return db_services
 
+    def delete_from_db(self):
+    #     delete entry from db
+        db_services = self.search_db()
+        if self.lineEdit.text() in db_services:
+            print('trying to delete')
+            cursor.execute("""
+            DELETE FROM passwords WHERE service=?""", (self.lineEdit.text(),))
+            db.commit()
+            print("deleted")
+            self.error_2.show()
 
         else:
             self.error_1.show()
+            print("not there")
+
+    def pull_up_record(self):
+        # pull up list of DB services
+        db_services = self.search_db()
+        if self.lineEdit.text() in db_services:
+            self.error_1.hide()
+            print('yeah its here')
+            self.result = self.lineEdit.text()
+            self.result_window = ResultWindow(self.result)
+            self.result_window.show()
+        else:
+            self.error_1.show()
+
+    def create_record(self):
+        #create a new record
+        db_services = self.search_db()
+        print(db_services)
+        self.add_record = AddWindow(db_services)
+        self.add_record.show()
 
 
+class AddWindow(QWidget):
+    def __init__(self, services):
+        super().__init__()
+        uic.loadUi('add_entry.ui', self)
+        self.services = services
+        self.error.hide()
+        self.pushButton.clicked.connect(self.update_db)
+        self.pushButton_2.clicked.connect(self.end)
+        self.label_6.hide()
+        # setting the order
+        self.setTabOrder(self.input1serv, self.input2usr)
+        self.setTabOrder(self.input2usr, self.input3email)
+        self.setTabOrder(self.input3email, self.input4pw)
+        self.setTabOrder(self.input4pw, self.pushButton)
+
+
+    def end(self):
+        # the self.destroy callback won't work from the __init__
+        self.destroy()
+
+    def update_db(self):
+        service_input = self.input1serv.text()
+        username = self.input2usr.text()
+        email = self.input3email.text()
+        password = self.input4pw.text()
+
+        if service_input not in self.services and service_input and password:
+            # allows the adding of a new record if there is a clean service and a service + pw entered.
+            cursor.execute("""
+            INSERT INTO passwords(service, username, email, password)
+            VALUES(?,?,?,?)
+            """, (service_input,username,email,password))
+
+            # record_id = cursor.lastrowid
+            print('added')
+            db.commit()
+            cursor.execute("""SELECT * FROM passwords""")
+            print(cursor.fetchall())
+
+            self.error.hide()
+            self.label_6.show()
+
+        else:
+            print('already in there or no pw/service entered')
+            self.error.show()
 
 
 class LogInWindow(QWidget):
@@ -65,13 +159,12 @@ class LogInWindow(QWidget):
         self.pushButton.clicked.connect(self.log_in)
 
     def log_in(self):
-        if self.name_input.text() == "temp" and self.pw_input.text() == "1234":
+        if self.name_input.text() == "" and self.pw_input.text() == "":
             self.w = MainWindow()
             self.w.show()
             self.destroy()
         else:
             self.error.show()
-
 
 
 if __name__ == "__main__":
