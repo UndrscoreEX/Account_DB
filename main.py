@@ -1,14 +1,17 @@
 import sqlite3
 from sqlite3 import Error
 import sys
-from PyQt6.QtWidgets import QApplication,QWidget,QBoxLayout,QVBoxLayout, QMainWindow
+from PyQt6.QtWidgets import QApplication,QWidget,QBoxLayout,QVBoxLayout, QMainWindow,QLineEdit
 from PyQt6.QtCore import Qt
 from PyQt6 import uic
+from PyQt6 import QtWidgets
 
 
-# to do
-# add entry text for things       self.lineEdit.setPlaceholderText('placeholdertext')
-# add enter key press actions
+#   to do:
+#   add enter key press actions
+#   encryption
+#   add username/pw change
+#   check that input email is an email
 
 # DB SETUP:
 # creates or opens db
@@ -56,12 +59,16 @@ class MainWindow(QMainWindow):
         self.pushButton_2.clicked.connect(self.delete_from_db)
         self.pushButton.clicked.connect(self.create_record)
         self.error_2.hide()
+        self.lineEdit.setPlaceholderText('facebook, gmail, ...')
+        # self.initUI()
+
 
     def search_db(self):
         # check if entry exists - general
         self.error_2.hide()
         cursor.execute("""SELECT service FROM passwords""")
         db_services = cursor.fetchall()
+
         # the query result comes out as tuples.
         db_services = [x[0] for x in db_services]
         print("SV check: the services are:",db_services)
@@ -70,10 +77,10 @@ class MainWindow(QMainWindow):
     def delete_from_db(self):
     #     delete entry from db
         db_services = self.search_db()
-        if self.lineEdit.text() in db_services:
+        if self.lineEdit.text().lower() in db_services:
             print('trying to delete')
             cursor.execute("""
-            DELETE FROM passwords WHERE service=?""", (self.lineEdit.text(),))
+            DELETE FROM passwords WHERE service=?""", (self.lineEdit.text().lower(),))
             db.commit()
             print("deleted")
             self.error_2.show()
@@ -85,10 +92,10 @@ class MainWindow(QMainWindow):
     def pull_up_record(self):
         # pull up list of DB services
         db_services = self.search_db()
-        if self.lineEdit.text() in db_services:
+        if self.lineEdit.text().lower() in db_services:
             self.error_1.hide()
             print('yeah its here')
-            self.result = self.lineEdit.text()
+            self.result = self.lineEdit.text().lower()
             self.result_window = ResultWindow(self.result)
             self.result_window.show()
         else:
@@ -101,6 +108,8 @@ class MainWindow(QMainWindow):
         self.add_record = AddWindow(db_services)
         self.add_record.show()
 
+    def enter_key_press(self, event):
+        print('asdf')
 
 class AddWindow(QWidget):
     def __init__(self, services):
@@ -116,6 +125,11 @@ class AddWindow(QWidget):
         self.setTabOrder(self.input2usr, self.input3email)
         self.setTabOrder(self.input3email, self.input4pw)
         self.setTabOrder(self.input4pw, self.pushButton)
+        self.input1serv.setPlaceholderText('facebook')
+        self.input2usr.setPlaceholderText('ethan')
+        self.input3email.setPlaceholderText('somethingsomething@gmail.com')
+        self.input4pw.setPlaceholderText('temp1234')
+
 
 
     def end(self):
@@ -123,31 +137,34 @@ class AddWindow(QWidget):
         self.destroy()
 
     def update_db(self):
-        service_input = self.input1serv.text()
+        service_input = self.input1serv.text().lower()
         username = self.input2usr.text()
         email = self.input3email.text()
         password = self.input4pw.text()
+        if service_input not in self.services:
 
-        if service_input not in self.services and service_input and password:
-            # allows the adding of a new record if there is a clean service and a service + pw entered.
-            cursor.execute("""
-            INSERT INTO passwords(service, username, email, password)
-            VALUES(?,?,?,?)
-            """, (service_input,username,email,password))
+            if service_input not in self.services and service_input and password:
+                # allows the adding of a new record if there is a clean service and a service + pw entered.
+                cursor.execute("""
+                INSERT INTO passwords(service, username, email, password)
+                VALUES(?,?,?,?)
+                """, (service_input,username,email,password))
 
-            # record_id = cursor.lastrowid
-            print('added')
-            db.commit()
-            cursor.execute("""SELECT * FROM passwords""")
-            print(cursor.fetchall())
+                # record_id = cursor.lastrowid
+                print('added')
+                db.commit()
+                cursor.execute("""SELECT * FROM passwords""")
+                print(cursor.fetchall())
 
-            self.error.hide()
-            self.label_6.show()
+                self.error.hide()
+                self.label_6.show()
 
+            else:
+                print('no pw/service entered')
+                self.error.show()
         else:
-            print('already in there or no pw/service entered')
+            print('already a record for that')
             self.error.show()
-
 
 class LogInWindow(QWidget):
     def __init__(self):
@@ -157,8 +174,9 @@ class LogInWindow(QWidget):
         self.name_input = self.lineEdit
         self.pw_input = self.lineEdit_2
         self.pushButton.clicked.connect(self.log_in)
-
+        self.keyPressEvent= self.keypressed
     def log_in(self):
+        # After the username and pw function is set, we can check them here (in a better way than a simple == statement)
         if self.name_input.text() == "" and self.pw_input.text() == "":
             self.w = MainWindow()
             self.w.show()
@@ -166,6 +184,11 @@ class LogInWindow(QWidget):
         else:
             self.error.show()
 
+
+    # still trying to figure out the enter keypress to click the login button.
+    # def keypressed(self,event):
+    #     if event.key() == QtCore.Qt.Key_Enter:
+    #         self.log_in()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
