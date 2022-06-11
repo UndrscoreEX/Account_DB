@@ -6,6 +6,6 @@ Using PyQt6 to create GUI for adding, deleting, searching social media accounts 
 Notes: no username/passwords set yet so the values are just "".
 
 Functionally to be added:
-#   add enter key press actions
-#   add username/pw change menu
-#   hashing pw 
+- add enter key press actions
+- add username/pw change menu
+- hashing pw 
